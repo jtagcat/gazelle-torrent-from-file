@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sync"
 
 	pflag "github.com/spf13/pflag"
 )
@@ -26,17 +27,17 @@ func init() {
 }
 
 func main() {
-	getDirs(opts.root_dir) //
+	actionable_dirs := getDirs(opts.root_dir)
 
-	// async for each dir:
-	//	// walk files
-	//	//	// api search with file
-	//	//	// if 0 hits, log error, brake
-	//	//	// if 1 hit, downloadTorrentFile(), brake
-
-	//	//	// if > hit, keep results, go to next file
-	//	//	// find common matches between last (carried set) and current
-	//	// if out of files, log error
+	var wg sync.WaitGroup
+	for _, dir := range actionable_dirs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			walkObjDir(dir)
+		}()
+	}
+	wg.Wait() // not needed, as go would wait for groutine exits anyway
 
 }
 
@@ -52,9 +53,17 @@ func getDirs(root_dir string) []string {
 	})
 
 	if err != nil {
-		panic(fmt.Sprintf("error walking path %q: %v", root_dir, err))
+		panic(fmt.Sprintf("error walking root %q: %v", root_dir, err))
 	}
 
 	dirs = dirs[1:] // 0th item would otherwise be root_dir
 	return dirs
 }
+
+// walk files
+//	// api search with file
+//	// if 0 hits, log error, brake
+//	// if 1 hit, downloadTorrentFile(), brake
+//	// if > hit, keep results, go to next file
+//	// find common matches between last (carried set) and current
+// if out of files, log error
