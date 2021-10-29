@@ -26,5 +26,18 @@ func getDirs(root_dir string) []string {
 }
 
 func main() {
+	// flags: required: rootdir, apikey, apipath, torrentFileDir
+
+	// getDirs(FLAGHERE)
+
+	// async for each dir:
+	//	// walk files
+	//	//	// api search with file
+	//	//	// if 0 hits, log error, brake
+	//	//	// if 1 hit, downloadTorrentFile(), brake
+
+	//	//	// if > hit, keep results, go to next file
+	//	//	// find common matches between last (carried set) and current
+	//	// if out of files, log error
 
 }
