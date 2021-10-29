@@ -1,1 +1,2 @@
-key
+testenv.toml
+*.notgo
