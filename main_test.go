@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/charles-haynes/whatapi"
+	"github.com/jtagcat/whatapi"
 )
 
 type ConfEnv struct {

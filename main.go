@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/charles-haynes/whatapi"
+	"github.com/jtagcat/whatapi"
 	pflag "github.com/spf13/pflag"
 )
 
