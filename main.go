@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/url"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/jtagcat/whatapi"
@@ -47,6 +49,9 @@ func initAPI(path string, user_agent string, user string, pass string) (client w
 func main() {
 	actionable_dirs := getDirs(opts.root_dir)
 
+	// wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass) // not in init(), because tests can't manipulate how/when it's called then
+	// using a shared client for (#TODO:) rate-limiting
+
 	var wg sync.WaitGroup
 	for _, dir := range actionable_dirs {
 		wg.Add(1)
@@ -88,27 +93,42 @@ func getDirs(root_dir string) []string {
 // if out of files, log error
 // TODO: API rate limit
 
-// func searchAPI(wcd *whatapi.ClientStruct, searchterm string) (results slice, err error) { //([]response, error) {
-// 	searchParams := url.Values{}
-// 	searchParams.Set("filelist", searchterm)
-// 	//TODO: init var repsonse slice; api call below should append to it
-//
-// 	page_current, pages_total := 0, 1
-// 	for page_current < pages_total {
-// 		page_current++
-// 		searchParams.Set("page", string(page_current))
-//
-// 		r, err := wcd.SearchTorrents("", searchParams)
-// 		if err != nil {
-// 			return r, err // responses so far, and we had an err; //TODO: upstream handle the err to drop the data, and log a warn
-// 		}
-//
-// 		if page_current != r.CurrentPage {
-// 			return r, errors.New("wcd_pagination: API did not return the page we requested.")
-// 		}
-// 		pages_total = r.Pages // upstream possible bugbug: page count might increase mid-pagination
-//
-// 		// append r to results? appending above might conflict with previous results or CurrentPage
-// 	}
-// 	return nil, nil // first should be full results
-// }
+type searchMinResult struct {
+	TorrentID  int
+	FileCountF int
+	Size       int64
+}
+
+func searchAPI(wcd whatapi.Client, searchterm string) (paginated_result []searchMinResult, err error) { //([]response, error) {
+	searchParams := url.Values{}
+	searchParams.Set("order_by", "time") // time added, unlikely to skip during pagination; sorting is funky (4y, 2y, **4y**, 1y, 6mo, etc)
+	searchParams.Set("order_way", "asc") // older first
+	searchParams.Set("filelist", searchterm)
+
+	page_current, pages_total := 0, 1
+	for page_current < pages_total { // pages_total updated with each request
+		page_current++
+		searchParams.Set("page", strconv.Itoa(page_current))
+
+		r, search_err := wcd.SearchTorrents("", searchParams)
+		if search_err != nil {
+			return paginated_result, search_err // responses so far, and we had an err; //TODO: upstream handle the err to drop the data, and log a warn
+		}
+		if page_current != r.CurrentPage {
+			return paginated_result, fmt.Errorf("wcd_pagination: We requested page %d, but API replied with page %d‽", page_current, r.CurrentPage)
+		}
+
+		pages_total = r.Pages // update each request
+
+		// TODO: do the returned groups return only matching torrents, or all within the group?
+		//  There doesn't seem to be a way to exclude non-matches, if it were the case.
+		for _, rr := range r.Results {
+			for _, v := range rr.Torrents {
+				paginated_result = append(paginated_result, searchMinResult{v.TorrentID, v.FileCountF, v.Size})
+			}
+		}
+	}
+	return paginated_result, nil
+}
+
+// func listfilesAPI

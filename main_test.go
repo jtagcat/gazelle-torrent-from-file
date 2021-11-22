@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/url"
 	"reflect"
@@ -51,7 +52,40 @@ func TestInitAPI(t *testing.T) {
 
 	want := "08. Bit - You Got Mail.flac"
 	if files[7].NameF != want {
-		t.Errorf("got %v want %q", files[7].NameF, want)
+		t.Errorf("got %v in %v, want %q", files[7].NameF, files, want)
 	}
 
+}
+
+func TestSearchAPI(t *testing.T) { // incomplete
+	wcd := tomlAPI()
+
+	wcd.SearchTorrents("test", url.Values{})
+	got, err := searchAPI(wcd, "08. Bit - You Got Mail.flac")
+	if err != nil {
+		t.Errorf("Error getting data: %q", err)
+	}
+	if reflect.DeepEqual(got, []whatapi.Torrent{}) == false {
+		t.Errorf("got %v want %v", got, []whatapi.Torrent{})
+	}
+}
+
+func TestTempWut(t *testing.T) {
+	wcd := tomlAPI()
+
+	if err := TempNested(wcd); err != nil {
+		t.Errorf("got %v want %v", err, nil)
+	}
+}
+
+func TempNested(wcd whatapi.Client) error {
+	got, _ := wcd.GetTorrent(196, url.Values{})
+
+	files, _ := got.Torrent.Files()
+
+	want := "08. Bit - You Got Mail.flac"
+	if files[7].NameF != want {
+		return fmt.Errorf("got %v in %v, want %q", files[7].NameF, files, want)
+	}
+	return nil
 }
