@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/url"
 	"reflect"
@@ -57,35 +56,30 @@ func TestInitAPI(t *testing.T) {
 
 }
 
-func TestSearchAPI(t *testing.T) { // incomplete
+func TestSearchAPI(t *testing.T) {
 	wcd := tomlAPI()
 
-	wcd.SearchTorrents("test", url.Values{})
 	got, err := searchAPI(wcd, "08. Bit - You Got Mail.flac")
 	if err != nil {
 		t.Errorf("Error getting data: %q", err)
 	}
-	if reflect.DeepEqual(got, []whatapi.Torrent{}) == false {
-		t.Errorf("got %v want %v", got, []whatapi.Torrent{})
+	want := []searchMinResult{{196, 15, 561900175}}
+	if reflect.DeepEqual(got, want) == false {
+		t.Errorf("got %v want %v", got, want)
 	}
 }
 
-func TestTempWut(t *testing.T) {
+func TestPaginationSearchAPI(t *testing.T) {
 	wcd := tomlAPI()
 
-	if err := TempNested(wcd); err != nil {
-		t.Errorf("got %v want %v", err, nil)
+	got, err := searchAPI(wcd, "readme.txt")
+	if err != nil {
+		t.Errorf("Error getting data: %q", err)
 	}
-}
 
-func TempNested(wcd whatapi.Client) error {
-	got, _ := wcd.GetTorrent(196, url.Values{})
-
-	files, _ := got.Torrent.Files()
-
-	want := "08. Bit - You Got Mail.flac"
-	if files[7].NameF != want {
-		return fmt.Errorf("got %v in %v, want %q", files[7].NameF, files, want)
+	want := 9293
+	if got[0].TorrentID != want {
+		t.Errorf("First pagination result, %v, of generic search readme.txt doesn't match the expected (%v).", got[0].TorrentID, want)
 	}
-	return nil
+
 }

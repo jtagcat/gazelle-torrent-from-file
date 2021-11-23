@@ -119,7 +119,7 @@ func searchAPI(wcd whatapi.Client, searchterm string) (paginated_result []search
 			return paginated_result, fmt.Errorf("wcd_pagination: We requested page %d, but API replied with page %d‽", page_current, r.CurrentPage)
 		}
 
-		pages_total = r.Pages // update each request
+		pages_total = r.Pages // update totalpages on each request
 
 		// TODO: do the returned groups return only matching torrents, or all within the group?
 		//  There doesn't seem to be a way to exclude non-matches, if it were the case.
