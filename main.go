@@ -1,11 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"io/fs"
-	"net/url"
 	"path/filepath"
-	"strconv"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -50,7 +47,7 @@ func initAPI(path string, user_agent string, user string, pass string) (client w
 func main() {
 	actionable_dirs := getDirs(opts.root_dir)
 
-	// wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass) // not in init(), because tests can't manipulate how/when it's called then
+	//wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass) // not in init(), because tests can't manipulate how/when it's called then
 	// using a shared client for (#TODO:) rate-limiting
 
 	var wg sync.WaitGroup
@@ -58,12 +55,22 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fmt.Printf(dir)
-			//walkObjDir(dir)
+
+			// within here: r, err := searchAPI(wcd, dir)
+			log.Warnf(dir)
 		}()
 	}
 	wg.Wait() // not needed, as go would wait for groutine exits anyway
 
+}
+
+type dirMin struct {
+	name  string
+	files []fileMin
+}
+type fileMin struct {
+	name string
+	size int64
 }
 
 // list directories inside root_dir
@@ -71,8 +78,18 @@ func getDirs(root_dir string) []string {
 	var dirs []string
 
 	err := filepath.WalkDir(root_dir, func(path string, d fs.DirEntry, err error) error {
-		if d.IsDir() {
-			dirs = append(dirs, filepath.Base(path))
+		if err != nil {
+			log.Fatalf("error walking subdirectory %q: %v", path, err)
+		}
+		if d.IsDir() { //TODO:
+			filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+
+				log.Fatalf("hello")
+				return nil
+			})
+			// dirs = append(dirs, )
+			dirs = append(dirs, d.Name())
+			//dirs = append(dirs, filepath.Base(path))
 		}
 		return nil
 	})
@@ -93,43 +110,3 @@ func getDirs(root_dir string) []string {
 //	// find common matches between last (carried set) and current
 // if out of files, log error
 // TODO: API rate limit
-
-type searchMinResult struct {
-	TorrentID  int
-	FileCountF int
-	Size       int64
-}
-
-func searchAPI(wcd whatapi.Client, searchterm string) (paginated_result []searchMinResult, err error) { //([]response, error) {
-	searchParams := url.Values{}
-	searchParams.Set("order_by", "time") // time added, unlikely to skip during pagination; sorting is funky (4y, 2y, **4y**, 1y, 6mo, etc)
-	searchParams.Set("order_way", "asc") // older first
-	searchParams.Set("filelist", searchterm)
-
-	page_current, pages_total := 0, 1
-	for page_current < pages_total { // pages_total updated with each request
-		page_current++
-		searchParams.Set("page", strconv.Itoa(page_current))
-
-		r, search_err := wcd.SearchTorrents("", searchParams)
-		if search_err != nil {
-			return paginated_result, search_err // responses so far, and we had an err; //TODO: upstream handle the err to drop the data, and log a warn
-		}
-		if page_current != r.CurrentPage {
-			return paginated_result, fmt.Errorf("wcd_pagination: We requested page %d, but API replied with page %d‽", page_current, r.CurrentPage)
-		}
-
-		pages_total = r.Pages // update totalpages on each request
-
-		// TODO: do the returned groups return only matching torrents, or all within the group?
-		//  There doesn't seem to be a way to exclude non-matches, if it were the case.
-		for _, rr := range r.Results {
-			for _, v := range rr.Torrents {
-				paginated_result = append(paginated_result, searchMinResult{v.TorrentID, v.FileCountF, v.Size})
-			}
-		}
-	}
-	return paginated_result, nil
-}
-
-// func listfilesAPI
