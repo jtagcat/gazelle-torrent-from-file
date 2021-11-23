@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"net/url"
 	"path/filepath"
 	"strconv"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/jtagcat/whatapi"
 	pflag "github.com/spf13/pflag"
