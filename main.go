@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"path/filepath"
-	"sync"
 
 	log "github.com/sirupsen/logrus"
 
@@ -45,59 +45,71 @@ func initAPI(path string, user_agent string, user string, pass string) (client w
 }
 
 func main() {
-	actionable_dirs := getDirs(opts.root_dir)
+	/* 	actionable_dirs := getDirs(opts.root_dir)
 
-	//wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass) // not in init(), because tests can't manipulate how/when it's called then
-	// using a shared client for (#TODO:) rate-limiting
+	   	//wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass) // not in init(), because tests can't manipulate how/when it's called then
+	   	// using a shared client for (#TODO:) rate-limiting
 
-	var wg sync.WaitGroup
-	for _, dir := range actionable_dirs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	   	var wg sync.WaitGroup
+	   	for _, dir := range actionable_dirs {
+	   		wg.Add(1)
+	   		go func() {
+	   			defer wg.Done()
 
-			// within here: r, err := searchAPI(wcd, dir)
-			log.Warnf(dir)
-		}()
-	}
-	wg.Wait() // not needed, as go would wait for groutine exits anyway
-
+	   			// within here: r, err := searchAPI(wcd, dir)
+	   			log.Warnf(dir)
+	   		}()
+	   	}
+	   	wg.Wait() // not needed, as go would wait for groutine exits anyway
+	*/
 }
 
 type dirMin struct {
-	id    int // 'optional'
-	name  string
-	size  int64
+	id    int    // 0 for source, localfs
+	path  string // source/localfs-only
+	name  string // this is seperate from path bc we might only have this;
+	size  int64  //   in some cases a bit insignificantly inefficient in memory
 	files []what.FileStruct
 }
 
 // list directories inside root_dir
-func getDirs(root_dir string) []string {
-	var dirs []string
+func getDirs(root_dir string) (dirs []dirMin, err error) {
 
-	err := filepath.WalkDir(root_dir, func(path string, d fs.DirEntry, err error) error {
+	err_walk := filepath.WalkDir(root_dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			log.Fatalf("error walking subdirectory %q: %v", path, err)
+			return fmt.Errorf("error walking subdirectory %v: %v", path, err)
 		}
 		if d.IsDir() { //TODO:
-			filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+			do, err_inf := d.Info()
+			if err_inf != nil {
+				return fmt.Errorf("error getting info for subdirectory %v: %v", path, err_inf)
+			}
 
-				log.Fatalf("hello")
+			var files []what.FileStruct
+			err_fw := filepath.WalkDir(path, func(path2 string, f fs.DirEntry, err error) error {
+				fo, err_fi := d.Info()
+				if err_fi != nil {
+					return fmt.Errorf("error getting info for %v: %v", path2, err_fi)
+				}
+				files = append(files, what.FileStruct{NameF: f.Name(), Size: fo.Size()})
 				return nil
 			})
-			// dirs = append(dirs, )
-			dirs = append(dirs, d.Name())
-			//dirs = append(dirs, filepath.Base(path))
+			if err_fw != nil {
+				return fmt.Errorf("error getting info for subdirectory %v: %v", path, err_fw)
+			}
+
+			files = files[1:] // 0th item would otherwise be parent dir
+			dirs = append(dirs, dirMin{0, path, d.Name(), do.Size(), files})
 		}
 		return nil
 	})
 
-	if err != nil {
-		log.Fatalf("error walking root %q: %v", root_dir, err)
+	if err_walk != nil {
+		return dirs, fmt.Errorf("error walking root %q: %v", root_dir, err)
 	}
 
 	dirs = dirs[1:] // 0th item would otherwise be root_dir
-	return dirs
+	return dirs, nil
 }
 
 // walk files
