@@ -15,6 +15,7 @@ type searchMinResult struct {
 }
 
 // search for a filename in all torrents
+// searchterm must not be the name of root directory
 func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMinResult, err error) {
 	searchParams := url.Values{}
 	searchParams.Set("order_by", "time") // time added, unlikely to skip during pagination; sorting is funky (4y, 2y, **4y**, 1y, 6mo, etc)
@@ -29,6 +30,10 @@ func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMin
 		r, search_err := wcd.SearchTorrents("", searchParams)
 		if search_err != nil {
 			return paginated_result, fmt.Errorf("wcd_pagination: Error searching for torrents with filename %v: %v", searchterm, search_err) // responses so far, and we had an err
+		}
+
+		if len(r.Results) == 0 {
+			return paginated_result, fmt.Errorf("wcd_pagination: No torrents found with filename %v", searchterm)
 		}
 		if page_current != r.CurrentPage {
 			return paginated_result, fmt.Errorf("wcd_pagination: We requested page %d, but API replied with page %d‽", page_current, r.CurrentPage)
