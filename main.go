@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 
 	what "github.com/charles-haynes/whatapi"
@@ -79,19 +80,11 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 		if err != nil {
 			return fmt.Errorf("error walking subdirectory %v: %v", path, err)
 		}
-		if d.IsDir() { //TODO:
-			do, err_inf := d.Info()
-			if err_inf != nil {
-				return fmt.Errorf("error getting info for subdirectory %v: %v", path, err_inf)
-			}
-
-			var files []what.FileStruct
-			err_fw := filepath.WalkDir(path, func(path2 string, f fs.DirEntry, err error) error {
-				fo, err_fi := d.Info()
-				if err_fi != nil {
-					return fmt.Errorf("error getting info for %v: %v", path2, err_fi)
-				}
-				files = append(files, what.FileStruct{NameF: f.Name(), Size: fo.Size()})
+		if d.IsDir() {
+			files, dirsize := []what.FileStruct{}, int64(-1096) // 1096: size of root dir
+			err_fw := filepath.Walk(path, func(path2 string, f os.FileInfo, err error) error {
+				files = append(files, what.FileStruct{NameF: f.Name(), Size: f.Size()})
+				dirsize += f.Size()
 				return nil
 			})
 			if err_fw != nil {
@@ -99,7 +92,7 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 			}
 
 			files = files[1:] // 0th item would otherwise be parent dir
-			dirs = append(dirs, dirMin{0, path, d.Name(), do.Size(), files})
+			dirs = append(dirs, dirMin{0, path, d.Name(), dirsize, files})
 		}
 		return nil
 	})
