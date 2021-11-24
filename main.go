@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 
 	what "github.com/charles-haynes/whatapi"
 	log "github.com/sirupsen/logrus"
@@ -103,6 +105,50 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 
 	dirs = dirs[1:] // 0th item would otherwise be root_dir
 	return dirs, nil
+}
+
+func findMatch(local dirMin, remote []dirMin) (local_plus_id dirMin, err error) {
+	var name_matches []dirMin
+	for _, o := range remote {
+		if local.name == o.name {
+			name_matches = append(name_matches, o)
+		}
+	}
+	if len(name_matches) == 0 {
+		return dirMin{}, fmt.Errorf("matching: 1 name_match: no match found for %v", local.name)
+	}
+
+	var size_matches []dirMin
+	for _, o := range name_matches {
+		if local.size == o.size {
+			size_matches = append(size_matches, o)
+		}
+	}
+	if len(size_matches) == 0 {
+		return dirMin{}, fmt.Errorf("matching: 2 size_match: no match found for %v", local.size)
+	}
+
+	sort.SliceStable(local.files, func(i, j int) bool { return local.files[i].NameF < local.files[j].NameF })
+	var files_matches []dirMin
+	for _, o := range name_matches {
+		if len(local.files) == len(o.files) {
+			sort.SliceStable(o.files, func(i, j int) bool { return o.files[i].NameF < o.files[j].NameF })
+			if reflect.DeepEqual(local.files, o.files) {
+				files_matches = append(files_matches, o)
+			}
+		}
+	}
+
+	log.Warnf("\n\nlocal: %v\nremote: %v\n\n", local.files, name_matches[0].files)
+	switch len(files_matches) {
+	default:
+		return dirMin{}, fmt.Errorf("matching: 3 files_match: multiple matches found for %v", local.files)
+	case 0:
+		return dirMin{}, fmt.Errorf("matching: 3 files_match: no match found for %v", local.files)
+	case 1:
+		local.id = files_matches[0].id
+		return local, nil
+	}
 }
 
 // compare filecount

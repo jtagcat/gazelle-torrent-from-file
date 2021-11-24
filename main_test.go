@@ -21,3 +21,29 @@ func TestGetDirs(t *testing.T) {
 		t.Errorf("got %v want %v", got, want)
 	}
 }
+
+func TestFullPrivDataFindMatch(t *testing.T) {
+	ldirs, err := getDirs("testdata/privtest")
+	if err != nil {
+		t.Errorf("1/4 getDirs returned error: %v", err)
+	}
+
+	wcd := tomlAPI()
+	sres, err := searchAPI(wcd, ldirs[0].files[0].NameF)
+	if err != nil {
+		t.Errorf("2/4 searchAPI returned error: %v", err)
+	}
+	rdirs, err := getAPIFilelist(wcd, sres)
+	if err != nil {
+		t.Errorf("3/4 getAPIFilelist returned error: %v", err)
+	}
+
+	got, err := findMatch(ldirs[0], rdirs)
+	if err != nil {
+		t.Errorf("4/4 findMatch returned error: %v", err)
+	}
+	want := 196
+	if got.id != want {
+		t.Errorf("match returned id: %v, want: %v", got.id, want)
+	}
+}
