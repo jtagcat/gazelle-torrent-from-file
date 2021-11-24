@@ -1,2 +1,3 @@
-testenv.toml
+testdata/privtest
+testdata/testenv.toml
 *.notgo
