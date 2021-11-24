@@ -18,7 +18,7 @@ type ConfEnv struct {
 
 func tomlAPI() (client whatapi.Client) {
 	var testenv ConfEnv
-	if _, err := toml.DecodeFile("testenv.toml", &testenv); err != nil {
+	if _, err := toml.DecodeFile("testdata/testenv.toml", &testenv); err != nil {
 		log.Fatalf("Error reading sercrets file: %q", err)
 	}
 
