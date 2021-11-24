@@ -65,12 +65,10 @@ func main() {
 }
 
 type dirMin struct {
+	id    int // 'optional'
 	name  string
-	files []fileMin
-}
-type fileMin struct {
-	name string
-	size int64
+	size  int64
+	files []whatapi.FileStruct
 }
 
 // list directories inside root_dir

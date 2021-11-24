@@ -77,16 +77,16 @@ func TestPaginationSearchAPI(t *testing.T) {
 func TestGetAPIFilelist(t *testing.T) {
 	wcd := tomlAPI()
 
-	input := searchMinResult{196, 15, 561900175}
-	got, err := getAPIFilelist(wcd, []searchMinResult{input})
+	got, err := getAPIFilelist(wcd, []searchMinResult{{196, 15, 561900175}})
 	if err != nil {
 		t.Errorf("Error getting data: %q", err)
 	}
-	want := whatapi.FileStruct{"08. Bit - You Got Mail.flac", 1433372} //TODO: warning here: composeite literal uses unkeyed fields; don't know how to improve..?
+	want := whatapi.FileStruct{NameF: "08. Bit - You Got Mail.flac", Size: 1433372} //TODO: warning here: composeite literal uses unkeyed fields; don't know how to improve..?
 	if got[0].files[7] != want {
 		t.Errorf("filelist: got %v, want %v", got, want)
 	}
-	if reflect.DeepEqual(got[0].torrent, input) == false {
-		t.Errorf("got %v want %v", got[0].torrent, input)
+	want2 := "VA-Hacknet_OST-(NONE)-WEB-FLAC-2015"
+	if got[0].name != want2 {
+		t.Errorf("filelist name: got %v, want %v", got[0].name, want2)
 	}
 }

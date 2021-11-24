@@ -46,12 +46,7 @@ func searchAPI(wcd whatapi.Client, searchterm string) (paginated_result []search
 	return paginated_result, nil
 }
 
-type searchResult struct {
-	torrent searchMinResult
-	files   []whatapi.FileStruct
-}
-
-func getAPIFilelist(wcd whatapi.Client, rootobjs []searchMinResult) (completedResult []searchResult, err error) {
+func getAPIFilelist(wcd whatapi.Client, rootobjs []searchMinResult) (completedResult []dirMin, err error) {
 
 	for _, o := range rootobjs { // to single torrent
 		r, err := wcd.GetTorrent(o.id, url.Values{})
@@ -63,10 +58,16 @@ func getAPIFilelist(wcd whatapi.Client, rootobjs []searchMinResult) (completedRe
 		if pars_err != nil {
 			return completedResult, fmt.Errorf("wcd_gettorrent: Error parsing file list of torrent with id %v: %v", o.id, pars_err)
 		}
-		completedResult = append(completedResult, searchResult{searchMinResult{o.id, o.filecount, o.size}, parsedfiles})
+		completedResult = append(completedResult, dirMin{o.id, r.Torrent.FilePath(), o.size, parsedfiles})
 	}
 
 	return completedResult, nil
 }
 
 //func getMatch(wcd whatapi.Client)
+
+// compare filecount
+// add matches to slice
+// if more than 1 items, use getAPIFileList:
+//    compare source and api minDir-s (no id!) (files)
+// when we have exactly one match, getAPIFileList if not already (?how ifnotalready)
