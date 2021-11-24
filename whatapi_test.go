@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/jtagcat/whatapi"
+	what "github.com/charles-haynes/whatapi"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -16,7 +16,7 @@ type ConfEnv struct {
 	Pass string
 }
 
-func tomlAPI() (client whatapi.Client) {
+func tomlAPI() (client what.Client) {
 	var testenv ConfEnv
 	if _, err := toml.DecodeFile("testdata/testenv.toml", &testenv); err != nil {
 		log.Fatalf("Error reading sercrets file: %q", err)
@@ -81,7 +81,7 @@ func TestGetAPIFilelist(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting data: %q", err)
 	}
-	want := whatapi.FileStruct{NameF: "08. Bit - You Got Mail.flac", Size: 1433372}
+	want := what.FileStruct{NameF: "08. Bit - You Got Mail.flac", Size: 1433372}
 	if got[0].files[7] != want {
 		t.Errorf("filelist: got %v, want %v", got, want)
 	}

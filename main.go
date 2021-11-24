@@ -7,7 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	what "github.com/jtagcat/whatapi"
+	what "github.com/charles-haynes/whatapi"
 	pflag "github.com/spf13/pflag"
 )
 

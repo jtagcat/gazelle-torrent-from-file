@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strconv"
 
-	what "github.com/jtagcat/whatapi"
+	what "github.com/charles-haynes/whatapi"
 )
 
 type searchMinResult struct {
