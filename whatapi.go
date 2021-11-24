@@ -27,7 +27,7 @@ func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMin
 
 		r, search_err := wcd.SearchTorrents("", searchParams)
 		if search_err != nil {
-			return paginated_result, fmt.Errorf("wcd_pagination: Error searching for torrents with filename %v: %v", searchterm, search_err) // responses so far, and we had an err; //TODO: upstream handle the err to drop the data, and log a warn
+			return paginated_result, fmt.Errorf("wcd_pagination: Error searching for torrents with filename %v: %v", searchterm, search_err) // responses so far, and we had an err
 		}
 		if page_current != r.CurrentPage {
 			return paginated_result, fmt.Errorf("wcd_pagination: We requested page %d, but API replied with page %d‽", page_current, r.CurrentPage)
@@ -36,7 +36,7 @@ func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMin
 		pages_total = r.Pages // update totalpages on each request
 
 		// TODO: do the returned groups return only matching torrents, or all within the group?
-		//  There doesn't seem to be a way to exclude non-matches, if it were the case.
+		//   There doesn't seem to be a way to exclude non-matches, if it were the case.
 		for _, rr := range r.Results {
 			for _, v := range rr.Torrents {
 				paginated_result = append(paginated_result, searchMinResult{v.TorrentID, v.FileCountF, v.Size})
@@ -69,5 +69,5 @@ func getAPIFilelist(wcd what.Client, rootobjs []searchMinResult) (completedResul
 // compare filecount
 // add matches to slice
 // if more than 1 items, use getAPIFileList:
-//    compare source and api minDir-s (no id!) (files)
+//   compare source and api minDir-s (no id!) (files)
 // when we have exactly one match, getAPIFileList if not already (?how ifnotalready)

@@ -81,7 +81,7 @@ func TestGetAPIFilelist(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting data: %q", err)
 	}
-	want := whatapi.FileStruct{NameF: "08. Bit - You Got Mail.flac", Size: 1433372} //TODO: warning here: composeite literal uses unkeyed fields; don't know how to improve..?
+	want := whatapi.FileStruct{NameF: "08. Bit - You Got Mail.flac", Size: 1433372}
 	if got[0].files[7] != want {
 		t.Errorf("filelist: got %v, want %v", got, want)
 	}

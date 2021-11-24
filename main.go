@@ -48,7 +48,6 @@ func main() {
 	/* 	actionable_dirs := getDirs(opts.root_dir)
 
 	   	//wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass) // not in init(), because tests can't manipulate how/when it's called then
-	   	// using a shared client for (#TODO:) rate-limiting
 
 	   	var wg sync.WaitGroup
 	   	for _, dir := range actionable_dirs {
@@ -119,4 +118,4 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 //	// if > hit, keep results, go to next file
 //	// find common matches between last (carried set) and current
 // if out of files, log error
-// TODO: API rate limit
+// TODO: API rate limit; can we do it via shared client?
