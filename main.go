@@ -5,13 +5,14 @@ import (
 	"io/fs"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
-
 	what "github.com/charles-haynes/whatapi"
+	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
 )
 
-// inspiration from restic
+// pflags usage inspiration from restic
+//   is not that friendly towards tests,
+//   no required/optional, checking
 var opts struct {
 	root_dir        string
 	torrentfile_dir string
@@ -71,7 +72,7 @@ type dirMin struct {
 	files []what.FileStruct
 }
 
-// list directories inside root_dir
+// list directories in localfs inside root_dir
 func getDirs(root_dir string) (dirs []dirMin, err error) {
 
 	err_walk := filepath.WalkDir(root_dir, func(path string, d fs.DirEntry, err error) error {
@@ -111,11 +112,11 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 	return dirs, nil
 }
 
-// walk files
-//	// api search with file
-//	// if 0 hits, log error, brake
-//	// if 1 hit, downloadTorrentFile(), brake
-//	// if > hit, keep results, go to next file
-//	// find common matches between last (carried set) and current
-// if out of files, log error
-// TODO: API rate limit; can we do it via shared client?
+// compare filecount
+// add matches to slice
+// if more than 1 items, use getAPIFileList:
+//   compare source and api minDir-s (no id!) (files)
+// when we have exactly one match, getAPIFileList if not already (?how ifnotalready)
+
+//TODO: refactor warnf-s to give an error code, and return error;
+//        that can be used by caller with filtering

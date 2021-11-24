@@ -14,7 +14,8 @@ type searchMinResult struct {
 	size      int64
 }
 
-func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMinResult, err error) { //([]response, error) {
+// search for a filename in all torrents
+func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMinResult, err error) {
 	searchParams := url.Values{}
 	searchParams.Set("order_by", "time") // time added, unlikely to skip during pagination; sorting is funky (4y, 2y, **4y**, 1y, 6mo, etc)
 	searchParams.Set("order_way", "asc") // older first
@@ -46,6 +47,8 @@ func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMin
 	return paginated_result, nil
 }
 
+// input: [] minimal torrent listings
+// output: [] standardized minDir listings with full file listings
 func getAPIFilelist(wcd what.Client, rootobjs []searchMinResult) (completedResult []dirMin, err error) {
 
 	for _, o := range rootobjs { // to single torrent
@@ -63,11 +66,3 @@ func getAPIFilelist(wcd what.Client, rootobjs []searchMinResult) (completedResul
 
 	return completedResult, nil
 }
-
-//func getMatch(wcd whatapi.Client)
-
-// compare filecount
-// add matches to slice
-// if more than 1 items, use getAPIFileList:
-//   compare source and api minDir-s (no id!) (files)
-// when we have exactly one match, getAPIFileList if not already (?how ifnotalready)
