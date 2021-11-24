@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/jtagcat/whatapi"
+	what "github.com/jtagcat/whatapi"
 )
 
 type searchMinResult struct {
@@ -14,7 +14,7 @@ type searchMinResult struct {
 	size      int64
 }
 
-func searchAPI(wcd whatapi.Client, searchterm string) (paginated_result []searchMinResult, err error) { //([]response, error) {
+func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMinResult, err error) { //([]response, error) {
 	searchParams := url.Values{}
 	searchParams.Set("order_by", "time") // time added, unlikely to skip during pagination; sorting is funky (4y, 2y, **4y**, 1y, 6mo, etc)
 	searchParams.Set("order_way", "asc") // older first
@@ -46,7 +46,7 @@ func searchAPI(wcd whatapi.Client, searchterm string) (paginated_result []search
 	return paginated_result, nil
 }
 
-func getAPIFilelist(wcd whatapi.Client, rootobjs []searchMinResult) (completedResult []dirMin, err error) {
+func getAPIFilelist(wcd what.Client, rootobjs []searchMinResult) (completedResult []dirMin, err error) {
 
 	for _, o := range rootobjs { // to single torrent
 		r, err := wcd.GetTorrent(o.id, url.Values{})

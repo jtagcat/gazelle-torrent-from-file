@@ -7,7 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/jtagcat/whatapi"
+	what "github.com/jtagcat/whatapi"
 	pflag "github.com/spf13/pflag"
 )
 
@@ -32,8 +32,8 @@ func init() {
 	pflag.Parse()
 }
 
-func initAPI(path string, user_agent string, user string, pass string) (client whatapi.Client) {
-	wcd, err := whatapi.NewClient(path, user_agent)
+func initAPI(path string, user_agent string, user string, pass string) (client what.Client) {
+	wcd, err := what.NewClient(path, user_agent)
 	if err != nil {
 		log.Fatalf("error initializing client: %q", err)
 	}
@@ -68,7 +68,7 @@ type dirMin struct {
 	id    int // 'optional'
 	name  string
 	size  int64
-	files []whatapi.FileStruct
+	files []what.FileStruct
 }
 
 // list directories inside root_dir
