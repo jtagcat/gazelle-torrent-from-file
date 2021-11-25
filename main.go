@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -77,60 +77,56 @@ type dirMin struct {
 
 // list directories in localfs inside root_dir
 func getDirs(root_dir string) (dirs []dirMin, err error) {
+	dc, err := os.Open(root_dir) // dc: dirclient
+	if err != nil {
+		return []dirMin{}, fmt.Errorf("error opening root dir: %v", err)
+	}
+	dinfo, err := dc.Readdir(-1)
+	dc.Close()
+	if err != nil {
+		return []dirMin{}, fmt.Errorf("error listing root dir: %v", err)
+	}
 
-	err_walk := filepath.WalkDir(root_dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("error walking subdirectory %v: %v", path, err)
-		}
-		if d.IsDir() {
-			files, dirsize := []what.FileStruct{}, int64(-1096) // 1096: size of root dir
-			err_fw := filepath.Walk(path, func(path2 string, f os.FileInfo, err error) error {
-				files = append(files, what.FileStruct{NameF: f.Name(), Size: f.Size()})
-				dirsize += f.Size()
+	for _, trd := range dinfo { // torrent root directory
+		if trd.IsDir() {
+			dirpath := path.Join(root_dir, trd.Name())
+			files, dirsize := []what.FileStruct{}, int64(0)
+
+			err_fw := filepath.Walk(dirpath, func(fpath string, f os.FileInfo, err error) error {
+				if !f.IsDir() {
+					relpath, err := filepath.Rel(dirpath, fpath)
+					if err != nil {
+						return fmt.Errorf("error getting super relative path for file %v: %v", fpath, err)
+					}
+					files = append(files, what.FileStruct{NameF: relpath, Size: f.Size()})
+					dirsize += f.Size()
+				}
 				return nil
 			})
 			if err_fw != nil {
-				return fmt.Errorf("error getting info for subdirectory %v: %v", path, err_fw)
+				return dirs, fmt.Errorf("error getting info for torrent root dir %v: %v", trd.Name(), err_fw)
 			}
-
-			files = files[1:] // 0th item would otherwise be parent dir
-			dirs = append(dirs, dirMin{0, path, d.Name(), dirsize, files})
+			dirs = append(dirs, dirMin{0, dirpath, trd.Name(), dirsize, files})
 		}
-		return nil
-	})
-
-	if err_walk != nil {
-		return dirs, fmt.Errorf("error walking root %q: %v", root_dir, err)
 	}
-
-	dirs = dirs[1:] // 0th item would otherwise be root_dir
 	return dirs, nil
 }
 
-func findMatch(local dirMin, remote []dirMin) (local_plus_id dirMin, err error) {
-	var name_matches []dirMin
-	for _, o := range remote {
-		if local.name == o.name {
-			name_matches = append(name_matches, o)
-		}
-	}
-	if len(name_matches) == 0 {
-		return dirMin{}, fmt.Errorf("matching: 1 name_match: no match found for %v", local.name)
-	}
+func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_plus_id dirMin, err error) {
 
 	var size_matches []dirMin
-	for _, o := range name_matches {
+	for _, o := range remote {
 		if local.size == o.size {
 			size_matches = append(size_matches, o)
 		}
 	}
 	if len(size_matches) == 0 {
-		return dirMin{}, fmt.Errorf("matching: 2 size_match: no match found for %v", local.size)
+		return dirMin{}, fmt.Errorf("matching: 1/3 size_match: no match found for %v", local.size)
 	}
 
 	sort.SliceStable(local.files, func(i, j int) bool { return local.files[i].NameF < local.files[j].NameF })
 	var files_matches []dirMin
-	for _, o := range name_matches {
+	for _, o := range size_matches {
 		if len(local.files) == len(o.files) {
 			sort.SliceStable(o.files, func(i, j int) bool { return o.files[i].NameF < o.files[j].NameF })
 			if reflect.DeepEqual(local.files, o.files) {
@@ -140,14 +136,32 @@ func findMatch(local dirMin, remote []dirMin) (local_plus_id dirMin, err error) 
 	}
 
 	switch len(files_matches) {
-	default:
-		return dirMin{}, fmt.Errorf("matching: 3 files_match: multiple matches found for %v", local.files)
 	case 0:
-		return dirMin{}, fmt.Errorf("matching: 3 files_match: no match found for %v", local.files)
+		return dirMin{}, fmt.Errorf("matching: 2/3 files_match: no match found for %v", local.files)
+	case 1:
+		if skip_trd_name_match {
+			local.id = files_matches[0].id
+			return local, nil
+		}
+		// default: still try to filter down matches, even if skip_trd_name_match
+	}
+
+	var name_matches []dirMin
+	for _, o := range files_matches {
+		if local.name == o.name {
+			name_matches = append(name_matches, o)
+		}
+	}
+	switch len(name_matches) {
+	default:
+		return dirMin{}, fmt.Errorf("matching: 3/3 name_match: multiple matches found for %v", local.files)
+	case 0:
+		return dirMin{}, fmt.Errorf("matching: 3/3 name_match: no match found for %v", local.name)
 	case 1:
 		local.id = files_matches[0].id
 		return local, nil
 	}
+
 }
 
 // compare filecount
