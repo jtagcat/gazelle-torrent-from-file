@@ -139,7 +139,6 @@ func findMatch(local dirMin, remote []dirMin) (local_plus_id dirMin, err error) 
 		}
 	}
 
-	log.Warnf("\n\nlocal: %v\nremote: %v\n\n", local.files, name_matches[0].files)
 	switch len(files_matches) {
 	default:
 		return dirMin{}, fmt.Errorf("matching: 3 files_match: multiple matches found for %v", local.files)
