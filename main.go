@@ -72,7 +72,12 @@ type dirMin struct {
 	path  string // source/localfs-only
 	name  string // this is seperate from path bc we might only have this;
 	size  int64  //   in some cases a bit insignificantly inefficient in memory
-	files []what.FileStruct
+	files []fileStruct
+}
+
+type fileStruct struct {
+	Name string
+	Size int64
 }
 
 // list directories in localfs inside root_dir
@@ -90,7 +95,7 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 	for _, trd := range dinfo { // torrent root directory
 		if trd.IsDir() {
 			dirpath := path.Join(root_dir, trd.Name())
-			files, dirsize := []what.FileStruct{}, int64(0)
+			files, dirsize := []fileStruct{}, int64(0)
 
 			err_fw := filepath.Walk(dirpath, func(fpath string, f os.FileInfo, err error) error {
 				if !f.IsDir() {
@@ -98,7 +103,7 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 					if err != nil {
 						return fmt.Errorf("error getting super relative path for file %v: %v", fpath, err)
 					}
-					files = append(files, what.FileStruct{NameF: relpath, Size: f.Size()})
+					files = append(files, fileStruct{Name: relpath, Size: f.Size()})
 					dirsize += f.Size()
 				}
 				return nil
@@ -124,11 +129,11 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 		return dirMin{}, fmt.Errorf("matching: 1/3 size_match: no match found for %v", local.size)
 	}
 
-	sort.SliceStable(local.files, func(i, j int) bool { return local.files[i].NameF < local.files[j].NameF })
+	sort.SliceStable(local.files, func(i, j int) bool { return local.files[i].Name < local.files[j].Name })
 	var files_matches []dirMin
 	for _, o := range size_matches {
 		if len(local.files) == len(o.files) {
-			sort.SliceStable(o.files, func(i, j int) bool { return o.files[i].NameF < o.files[j].NameF })
+			sort.SliceStable(o.files, func(i, j int) bool { return o.files[i].Name < o.files[j].Name })
 			if reflect.DeepEqual(local.files, o.files) {
 				files_matches = append(files_matches, o)
 			}
@@ -164,6 +169,36 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 
 }
 
+// wcd := tomlAPI()
+
+// sres, err := searchAPI(wcd, ldirs[trd_index].files[0].Name)
+// if err != nil {
+// 	return fmt.Errorf("2/4 searchAPI returned error: %v", err)
+// }
+// rdirs, err := getAPIFilelist(wcd, sres)
+// if err != nil {
+// 	return fmt.Errorf("3/4 getAPIFilelist returned error: %v", err)
+// }
+
+// got, err := findMatch(ldirs[trd_index], rdirs, false)
+// if err != nil {
+// 	return fmt.Errorf("4/4 findMatch returned error: %v", err)
+// }
+
+//TODO: better naming to differentiate from findMatch()
+
+// High-level function to get a match for a given torrent root directory.
+// Error: (default nil)
+// TODO: zeromatch No match
+// TODO: manymatch Multiple matches
+// (other errors possible)
+// func getMatch(wcd what.Client, ldir dirMin) (id int, err error) {
+// 	var blacklisted_ids []int
+// 	for _, f := range ldir.files { //TODO: early breaking
+// 		sres, err := searchAPI(wcd, f.Name())
+// 	}
+// }
+
 // compare filecount
 // add matches to slice
 // if more than 1 items, use getAPIFileList:
@@ -172,3 +207,5 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 
 //TODO: refactor warnf-s to give an error code, and return error;
 //        that can be used by caller with filtering
+
+//TODO: id ints, size int64s should actually be uints, since they can never be negative

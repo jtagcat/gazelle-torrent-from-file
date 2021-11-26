@@ -62,9 +62,13 @@ func getAPIFilelist(wcd what.Client, rootobjs []searchMinResult) (completedResul
 			return completedResult, fmt.Errorf("wcd_gettorrent: Error getting torrent of id %v: %v", o.id, err)
 		}
 
-		parsedfiles, pars_err := r.Torrent.Files()
+		parsedfiles_raw, pars_err := r.Torrent.Files()
 		if pars_err != nil {
 			return completedResult, fmt.Errorf("wcd_gettorrent: Error parsing file list of torrent with id %v: %v", o.id, pars_err)
+		}
+		var parsedfiles []fileStruct
+		for _, o := range parsedfiles_raw {
+			parsedfiles = append(parsedfiles, fileStruct{o.Name(), o.Size})
 		}
 		completedResult = append(completedResult, dirMin{o.id, "", r.Torrent.FilePath(), o.size, parsedfiles})
 	}

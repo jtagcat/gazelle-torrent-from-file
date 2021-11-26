@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-
-	what "github.com/charles-haynes/whatapi"
 )
 
 func TestGetDirs(t *testing.T) {
@@ -15,10 +13,10 @@ func TestGetDirs(t *testing.T) {
 	}
 
 	want := []dirMin{
-		{0, "testdata/root_files/bar", "bar", 4, []what.FileStruct{{NameF: "ping.txt", Size: 4}}},
-		{0, "testdata/root_files/baz", "baz", 11, []what.FileStruct{{NameF: "space.txt", Size: 7}, {NameF: "world.txt", Size: 4}}},
-		{0, "testdata/root_files/foo", "foo", 3, []what.FileStruct{{NameF: "hello.txt", Size: 3}}},
-		{0, "testdata/root_files/bag", "bag", 26, []what.FileStruct{{NameF: "head.txt", Size: 10}, {NameF: "subthing/subsubfile.txt", Size: 16}}}}
+		{0, "testdata/root_files/bar", "bar", 4, []fileStruct{{Name: "ping.txt", Size: 4}}},
+		{0, "testdata/root_files/baz", "baz", 11, []fileStruct{{Name: "space.txt", Size: 7}, {Name: "world.txt", Size: 4}}},
+		{0, "testdata/root_files/foo", "foo", 3, []fileStruct{{Name: "hello.txt", Size: 3}}},
+		{0, "testdata/root_files/bag", "bag", 26, []fileStruct{{Name: "head.txt", Size: 10}, {Name: "subthing/subsubfile.txt", Size: 16}}}}
 	if reflect.DeepEqual(got, want) == false {
 		t.Errorf("got %v\nwant %v", got, want)
 	}
@@ -32,7 +30,7 @@ func singlePrivdataMatch(trd_index int, expected_id int) error {
 
 	wcd := tomlAPI()
 
-	sres, err := searchAPI(wcd, ldirs[trd_index].files[0].NameF)
+	sres, err := searchAPI(wcd, ldirs[trd_index].files[0].Name)
 	if err != nil {
 		return fmt.Errorf("2/4 searchAPI returned error: %v", err)
 	}

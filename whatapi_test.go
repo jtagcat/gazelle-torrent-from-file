@@ -41,8 +41,9 @@ func TestInitAPI(t *testing.T) {
 	}
 
 	want := "08. Bit - You Got Mail.flac"
-	if files[7].NameF != want {
-		t.Errorf("got %v in %v, want %q", files[7].NameF, files, want)
+	agot := files[7].Name()
+	if agot != want {
+		t.Errorf("got %v in %v, want %q", agot, files, want)
 	}
 
 }
@@ -81,7 +82,7 @@ func TestGetAPIFilelist(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting data: %q", err)
 	}
-	want := what.FileStruct{NameF: "08. Bit - You Got Mail.flac", Size: 1433372}
+	want := fileStruct{Name: "08. Bit - You Got Mail.flac", Size: 1433372}
 	if got[0].files[7] != want {
 		t.Errorf("filelist: got %v, want %v", got, want)
 	}
