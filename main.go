@@ -126,7 +126,7 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 		}
 	}
 	if len(size_matches) == 0 {
-		return dirMin{}, fmt.Errorf("matching: 1/3 size_match: no match found for %v", local.size)
+		return dirMin{}, findMatch_err_zeromatch{local.name, "totalsize", false, []int{}}
 	}
 
 	sort.SliceStable(local.files, func(i, j int) bool { return local.files[i].Name < local.files[j].Name })
@@ -142,7 +142,7 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 
 	switch len(files_matches) {
 	case 0:
-		return dirMin{}, fmt.Errorf("matching: 2/3 files_match: no match found for %v", local.files)
+		return dirMin{}, findMatch_err_zeromatch{local.name, "filelist", false, []int{}}
 	case 1:
 		if skip_trd_name_match {
 			local.id = files_matches[0].id
@@ -159,9 +159,20 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 	}
 	switch len(name_matches) {
 	default:
-		return dirMin{}, fmt.Errorf("matching: 3/3 name_match: multiple matches found for %v", local.files)
+		var multi_ids []int
+		for _, o := range name_matches {
+			multi_ids = append(multi_ids, o.id)
+		}
+		return dirMin{}, findMatch_err_multimatch{local.name, multi_ids}
 	case 0:
-		return dirMin{}, fmt.Errorf("matching: 3/3 name_match: no match found for %v", local.name)
+		if skip_trd_name_match && len(files_matches) >= 1 {
+			var lost_ids []int
+			for _, o := range files_matches {
+				lost_ids = append(lost_ids, o.id)
+			}
+			return dirMin{}, findMatch_err_zeromatch{local.name, "rtd_name", true, lost_ids}
+		}
+		return dirMin{}, findMatch_err_zeromatch{local.name, "rtd_name", false, []int{}}
 	case 1:
 		local.id = files_matches[0].id
 		return local, nil
@@ -169,16 +180,27 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 
 }
 
-// wcd := tomlAPI()
+type findMatch_err_zeromatch struct {
+	lname                            string
+	step                             string
+	lost_match_due_to_rtd_filter     bool
+	lost_match_due_to_rtd_filter_ids []int
+}
+type findMatch_err_multimatch struct {
+	lname         string
+	resulting_ids []int
+}
 
-// sres, err := searchAPI(wcd, ldirs[trd_index].files[0].Name)
-// if err != nil {
-// 	return fmt.Errorf("2/4 searchAPI returned error: %v", err)
-// }
-// rdirs, err := getAPIFilelist(wcd, sres)
-// if err != nil {
-// 	return fmt.Errorf("3/4 getAPIFilelist returned error: %v", err)
-// }
+func (e findMatch_err_zeromatch) Error() string {
+	if e.lost_match_due_to_rtd_filter {
+		return fmt.Sprintf("%v: 0 matches found with matcher %v; rtd filtering removed all remaining %v matches: %v", e.lname, e.step, len(e.lost_match_due_to_rtd_filter_ids), e.lost_match_due_to_rtd_filter_ids)
+	} else {
+		return fmt.Sprintf("%v: 0 matches found with matcher %v", e.lname, e.step)
+	}
+}
+func (e findMatch_err_multimatch) Error() string {
+	return fmt.Sprintf("%v: multiple matches found with IDs: %v", e.lname, e.resulting_ids)
+}
 
 // got, err := findMatch(ldirs[trd_index], rdirs, false)
 // if err != nil {
@@ -192,10 +214,19 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 // TODO: zeromatch No match
 // TODO: manymatch Multiple matches
 // (other errors possible)
-// func getMatch(wcd what.Client, ldir dirMin) (id int, err error) {
+// func getMatch(wcd what.Client, skip_trd_name_match bool, ldir dirMin) (match dirMin, err error) {
 // 	var blacklisted_ids []int
 // 	for _, f := range ldir.files { //TODO: early breaking
-// 		sres, err := searchAPI(wcd, f.Name())
+// 		sres, serr := searchAPI(wcd, f.Name)
+// 		if serr != nil {
+// 			return dirMin{}, fmt.Errorf("getMatch: 1 searchAPI for file %v errored: %v", f.Name, err)
+// 		}
+// 		rdirs, rerr := getAPIFilelist(wcd, sres)
+// 		if rerr != nil {
+// 			return dirMin{}, fmt.Errorf("getMatch: 2 getAPIFilelist for file %v errored: %v", f.Name, rerr)
+// 		}
+// 		match, err := findMatch(ldir, rdirs, skip_trd_name_match)
+// 		if
 // 	}
 // }
 
