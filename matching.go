@@ -4,9 +4,24 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+
+	what "github.com/charles-haynes/whatapi"
 )
 
-func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_plus_id dirMin, err error) {
+type errFindFileMatch struct {
+	code int // golang doesn't have enums
+	// 0: no err
+	// 1: zeromatch
+	// 2: multimatch
+	step                     string
+	zeromatch_trd_filter_ids []int // only non-default when code == 1 // IDs (all) filtered out in len(n)-th step
+	multimatch_ids           []int // only non-default when code == 2 // IDs of matches left
+}
+
+// Finds match(es) for a local filepath
+// CHECK IF err.code > 2 FOR RUNTIME ENUM CHECKING (see above)
+// 	 panic(fmt.Sprintf("golang does not support enums; runtime enum checking: errFindFileMatch.code should never be %d", merr.code))
+func findFileMatch(skip_trd_name_matching bool, local dirMin, remote []dirMin) (local_plus_id dirMin, err errFindFileMatch) {
 
 	var size_matches []dirMin
 	for _, o := range remote {
@@ -14,8 +29,8 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 			size_matches = append(size_matches, o)
 		}
 	}
-	if len(size_matches) == 0 {
-		return dirMin{}, findMatch_err_zeromatch{local.name, "totalsize", false, []int{}}
+	if size_matches == nil {
+		return dirMin{}, errFindFileMatch{code: 1, step: "size"}
 	}
 
 	sort.SliceStable(local.files, func(i, j int) bool { return local.files[i].Name < local.files[j].Name })
@@ -31,96 +46,107 @@ func findMatch(local dirMin, remote []dirMin, skip_trd_name_match bool) (local_p
 
 	switch len(files_matches) {
 	case 0:
-		return dirMin{}, findMatch_err_zeromatch{local.name, "filelist", false, []int{}}
+		return dirMin{}, errFindFileMatch{code: 1, step: "filelist"}
 	case 1:
-		if skip_trd_name_match {
+		if skip_trd_name_matching {
 			local.id = files_matches[0].id
-			return local, nil
+			return local, errFindFileMatch{}
 		}
-		// default: still try to filter down matches, even if skip_trd_name_match
+		// default: still try to filter down matches, even if skip_trd_name_matching
 	}
 
-	var name_matches []dirMin
+	var trd_matches []dirMin
 	for _, o := range files_matches {
 		if local.name == o.name {
-			name_matches = append(name_matches, o)
+			trd_matches = append(trd_matches, o)
 		}
 	}
-	switch len(name_matches) {
+	switch len(trd_matches) {
 	default:
 		var multi_ids []int
-		for _, o := range name_matches {
+		for _, o := range trd_matches {
 			multi_ids = append(multi_ids, o.id)
 		}
-		return dirMin{}, findMatch_err_multimatch{local.name, multi_ids}
-	case 0:
-		if skip_trd_name_match && len(files_matches) >= 1 {
-			var lost_ids []int
-			for _, o := range files_matches {
-				lost_ids = append(lost_ids, o.id)
-			}
-			return dirMin{}, findMatch_err_zeromatch{local.name, "rtd_name", true, lost_ids}
+		return dirMin{}, errFindFileMatch{code: 2, step: "trd", multimatch_ids: multi_ids}
+	case 0: //skip_trd: 2+ → 0; !skip_trd: 1+ → 0
+		var lost_ids []int
+		for _, o := range files_matches {
+			lost_ids = append(lost_ids, o.id)
 		}
-		return dirMin{}, findMatch_err_zeromatch{local.name, "rtd_name", false, []int{}}
+		return dirMin{}, errFindFileMatch{code: 1, step: "trd", zeromatch_trd_filter_ids: lost_ids}
 	case 1:
 		local.id = files_matches[0].id
-		return local, nil
+		return local, errFindFileMatch{}
 	}
 
 }
-
-type findMatch_err_zeromatch struct {
-	lname                            string
-	step                             string
-	lost_match_due_to_rtd_filter     bool
-	lost_match_due_to_rtd_filter_ids []int
-}
-type findMatch_err_multimatch struct {
-	lname         string
-	resulting_ids []int
-}
-
-func (e findMatch_err_zeromatch) Error() string {
-	if e.lost_match_due_to_rtd_filter {
-		return fmt.Sprintf("%v: 0 matches found with matcher %v; rtd filtering removed all remaining %v matches: %v", e.lname, e.step, len(e.lost_match_due_to_rtd_filter_ids), e.lost_match_due_to_rtd_filter_ids)
-	} else {
-		return fmt.Sprintf("%v: 0 matches found with matcher %v", e.lname, e.step)
-	}
-}
-func (e findMatch_err_multimatch) Error() string {
-	return fmt.Sprintf("%v: multiple matches found with IDs: %v", e.lname, e.resulting_ids)
-}
-
-// got, err := findMatch(ldirs[trd_index], rdirs, false)
-// if err != nil {
-// 	return fmt.Errorf("4/4 findMatch returned error: %v", err)
-// }
-
-//TODO: better naming to differentiate from findMatch()
 
 // High-level function to get a match for a given torrent root directory.
-// Error: (default nil)
-// TODO: zeromatch No match
-// TODO: manymatch Multiple matches
-// (other errors possible)
-// func getMatch(wcd what.Client, skip_trd_name_match bool, ldir dirMin) (match dirMin, err error) {
-// 	var blacklisted_ids []int
-// 	for _, f := range ldir.files { //TODO: early breaking
-// 		sres, serr := searchAPI(wcd, f.Name)
-// 		if serr != nil {
-// 			return dirMin{}, fmt.Errorf("getMatch: 1 searchAPI for file %v errored: %v", f.Name, err)
-// 		}
-// 		rdirs, rerr := getAPIFilelist(wcd, sres)
-// 		if rerr != nil {
-// 			return dirMin{}, fmt.Errorf("getMatch: 2 getAPIFilelist for file %v errored: %v", f.Name, rerr)
-// 		}
-// 		match, err := findMatch(ldir, rdirs, skip_trd_name_match)
-// 		if
-// 	}
-// }
+func findDirMatch(wcd what.Client, skip_trd_name_matching bool, ldir dirMin) (match dirMin, err error) {
+	searchable := ldir.name
+	var blacklisted_ids []int
+	var merr errFindFileMatch // to return merr.multimatch_ids at end of func
 
-// compare filecount
-// add matches to slice
-// if more than 1 items, use getAPIFileList:
-//   compare source and api minDir-s (no id!) (files)
-// when we have exactly one match, getAPIFileList if not already (?how ifnotalready)
+	for _, f := range ldir.files {
+		sres, serr := searchAPI(wcd, f.Name)
+		if serr != nil {
+			return dirMin{}, fmt.Errorf("%v: searchAPI for file %v errored: %v", searchable, f.Name, err)
+		}
+
+		// remove blacklisted IDs (known no match)
+		for _, b := range blacklisted_ids {
+			for i, o := range sres {
+				if o.id == b {
+					sres = append(sres[:i], sres[i+1:]...)
+					break
+				}
+			}
+		}
+		rdirs, rerr := getAPIFilelist(wcd, sres)
+		if rerr != nil {
+			return dirMin{}, fmt.Errorf("%v: getAPIFilelist for file %v errored: %v", searchable, f.Name, rerr)
+		}
+
+		match, merr := findFileMatch(skip_trd_name_matching, ldir, rdirs)
+		switch merr.code {
+		case 0: // single match
+			return match, nil
+		case 1: // zero matches
+			if merr.zeromatch_trd_filter_ids == nil {
+				return dirMin{}, fmt.Errorf("%v: 0 matches found", searchable)
+			} else {
+				return dirMin{}, fmt.Errorf("%v: 0 matches found; %v matches with IDs %v were dropped while comparing Torrent Root Directory names",
+					searchable, len(merr.zeromatch_trd_filter_ids), merr.zeromatch_trd_filter_ids)
+			}
+		case 2: // 2+ matches
+			var searched_ids []int
+			for _, o := range rdirs {
+				searched_ids = append(searched_ids, o.id)
+			}
+
+			// remove merr.multimatch_ids from searched_ids
+			for _, m := range merr.multimatch_ids {
+				for i, s := range searched_ids {
+					if s == m {
+						searched_ids = append(searched_ids[:i], searched_ids[i+1:]...)
+						break
+					}
+				}
+			}
+			blacklisted_ids = append(blacklisted_ids, searched_ids...)
+			// (loop)
+		default:
+			panic(fmt.Sprintf("golang does not support enums; runtime enum checking: errFindFileMatch.code should never be %d", merr.code))
+		}
+	}
+	return dirMin{}, fmt.Errorf("%v: multiple matches found with IDs: %v", searchable, merr.multimatch_ids)
+}
+
+// to whatapi: download torrent of id
+// to main:
+// 1. get dirs
+// 1. client
+// 1. for range dirs findDirMatch()
+//    1. findDirMatch returns local dirMin() object with id
+//    1. based on exit codes, move to output dirs (if move)
+// 1. download torrent files
