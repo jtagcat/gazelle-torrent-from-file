@@ -141,12 +141,3 @@ func findDirMatch(wcd what.Client, skip_trd_name_matching bool, ldir dirMin) (ma
 	}
 	return dirMin{}, fmt.Errorf("%v: multiple matches found with IDs: %v", searchable, merr.multimatch_ids)
 }
-
-// to whatapi: download torrent of id
-// to main:
-// 1. get dirs
-// 1. client
-// 1. for range dirs findDirMatch()
-//    1. findDirMatch returns local dirMin() object with id
-//    1. based on exit codes, move to output dirs (if move)
-// 1. download torrent files

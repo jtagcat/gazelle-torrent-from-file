@@ -91,6 +91,56 @@ func main() {
 	processDirs(wcd, opts.skip_trd_name_matching, opts.output, opts.moveto_success, opts.moveto_failure, ldirs)
 }
 
+type dirMin struct {
+	id    int    // 0 for source, localfs
+	path  string // source/localfs-only
+	name  string // this is seperate from path bc we might only have this;
+	size  int64  //   in some cases a bit insignificantly inefficient in memory
+	files []fileStruct
+}
+
+type fileStruct struct {
+	Name string
+	Size int64
+}
+
+// list directories in localfs inside root_dir
+func getDirs(root_dir string) (dirs []dirMin, err error) {
+	dc, err := os.Open(root_dir) // dc: dirclient
+	if err != nil {
+		return []dirMin{}, fmt.Errorf("error opening root dir: %v", err)
+	}
+	dinfo, err := dc.Readdir(-1)
+	dc.Close()
+	if err != nil {
+		return []dirMin{}, fmt.Errorf("error listing root dir: %v", err)
+	}
+
+	for _, trd := range dinfo { // torrent root directory
+		if trd.IsDir() {
+			dirpath := path.Join(root_dir, trd.Name())
+			files, dirsize := []fileStruct{}, int64(0)
+
+			err_fw := filepath.Walk(dirpath, func(fpath string, f os.FileInfo, err error) error {
+				if !f.IsDir() {
+					relpath, err := filepath.Rel(dirpath, fpath)
+					if err != nil {
+						return fmt.Errorf("error getting super relative path for file %v: %v", fpath, err)
+					}
+					files = append(files, fileStruct{Name: relpath, Size: f.Size()})
+					dirsize += f.Size()
+				}
+				return nil
+			})
+			if err_fw != nil {
+				return dirs, fmt.Errorf("error getting info for torrent root dir %v: %v", trd.Name(), err_fw)
+			}
+			dirs = append(dirs, dirMin{0, dirpath, trd.Name(), dirsize, files})
+		}
+	}
+	return dirs, nil
+}
+
 func processDirs(wcd what.Client, skip_trd_name_matching bool, dl_loc string, moveto_success string, moveto_failure string, ldirs []dirMin) {
 	for _, ldir := range ldirs {
 		processSingleDir(wcd, skip_trd_name_matching, dl_loc, moveto_success, moveto_failure, ldir)
@@ -161,54 +211,4 @@ func downloadFile(dl_loc string, url string) error {
 		return err
 	}
 	return nil
-}
-
-type dirMin struct {
-	id    int    // 0 for source, localfs
-	path  string // source/localfs-only
-	name  string // this is seperate from path bc we might only have this;
-	size  int64  //   in some cases a bit insignificantly inefficient in memory
-	files []fileStruct
-}
-
-type fileStruct struct {
-	Name string
-	Size int64
-}
-
-// list directories in localfs inside root_dir
-func getDirs(root_dir string) (dirs []dirMin, err error) {
-	dc, err := os.Open(root_dir) // dc: dirclient
-	if err != nil {
-		return []dirMin{}, fmt.Errorf("error opening root dir: %v", err)
-	}
-	dinfo, err := dc.Readdir(-1)
-	dc.Close()
-	if err != nil {
-		return []dirMin{}, fmt.Errorf("error listing root dir: %v", err)
-	}
-
-	for _, trd := range dinfo { // torrent root directory
-		if trd.IsDir() {
-			dirpath := path.Join(root_dir, trd.Name())
-			files, dirsize := []fileStruct{}, int64(0)
-
-			err_fw := filepath.Walk(dirpath, func(fpath string, f os.FileInfo, err error) error {
-				if !f.IsDir() {
-					relpath, err := filepath.Rel(dirpath, fpath)
-					if err != nil {
-						return fmt.Errorf("error getting super relative path for file %v: %v", fpath, err)
-					}
-					files = append(files, fileStruct{Name: relpath, Size: f.Size()})
-					dirsize += f.Size()
-				}
-				return nil
-			})
-			if err_fw != nil {
-				return dirs, fmt.Errorf("error getting info for torrent root dir %v: %v", trd.Name(), err_fw)
-			}
-			dirs = append(dirs, dirMin{0, dirpath, trd.Name(), dirsize, files})
-		}
-	}
-	return dirs, nil
 }
