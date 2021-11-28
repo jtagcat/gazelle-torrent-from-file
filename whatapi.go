@@ -41,8 +41,6 @@ func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMin
 
 		pages_total = r.Pages // update totalpages on each request
 
-		// TODO: do the returned groups return only matching torrents, or all within the group?
-		//   There doesn't seem to be a way to exclude non-matches, if it were the case.
 		for _, rr := range r.Results {
 			for _, v := range rr.Torrents {
 				paginated_result = append(paginated_result, searchMinResult{v.TorrentID, v.FileCountF, v.Size})
@@ -75,3 +73,5 @@ func getAPIFilelist(wcd what.Client, rootobjs []searchMinResult) (completedResul
 
 	return completedResult, nil
 }
+
+//TODO: id ints, size int64s should actually be uints, since they can never be negative

@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
+	"mime"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,17 +19,23 @@ import (
 //   is not that friendly towards tests,
 //   no required/optional, checking
 var opts struct {
-	root_dir        string
-	torrentfile_dir string
-	api_path        string
-	api_user        string
-	api_pass        string
-	user_agent      string
+	root_dir               string
+	output                 string
+	moveto_success         string
+	moveto_failure         string
+	api_path               string
+	api_user               string
+	api_pass               string
+	user_agent             string
+	skip_trd_name_matching bool
 }
 
 func init() {
 	pflag.StringVarP(&opts.root_dir, "input", "i", "", "root directory, in what .torrent-less directories are in")
-	pflag.StringVarP(&opts.torrentfile_dir, "output", "o", "", "where .torrent files should be downloaded to")
+	pflag.BoolVarP(&opts.skip_trd_name_matching, "skip-trd-name-matching", "n", false, "skip torrent root directory name matching")
+	pflag.StringVarP(&opts.output, "output", "o", "", "where .torrent files should be downloaded to")
+	pflag.StringVarP(&opts.moveto_success, "moveto-onsuccess", "s", "", "on success, move subdirectories of root to defined directory (optional)")
+	pflag.StringVarP(&opts.moveto_failure, "moveto-onfailure", "f", "", "on failure, move subdirectories of root to defined directory (optional)")
 	pflag.StringVarP(&opts.api_path, "host", "h", "https://orpheus.network/", "URL path to API (without ajax.php, trailing slash)")
 	pflag.StringVarP(&opts.api_user, "user", "u", "", "username")
 	pflag.StringVarP(&opts.api_pass, "pass", "p", "", "password")
@@ -46,23 +56,111 @@ func initAPI(path string, user_agent string, user string, pass string) (client w
 	return wcd
 }
 
+const programShortName = "gtff"
+
+func initDir(dirpath string, dirname string, may_be_unset bool) {
+	if dirpath == "" {
+		if !may_be_unset {
+			log.Fatalf("%s must be set", dirname)
+		}
+	} else {
+		filepath := path.Join(dirpath, programShortName+"_permtest")
+		if werr := ioutil.WriteFile(filepath, []byte("delete me, testing writability"), os.ModePerm); werr != nil {
+			log.Fatalf("error writing permtest file to %s: %v", dirname, werr)
+		}
+		if derr := os.Remove(filepath); derr != nil {
+			log.Fatalf("error removing permtest file from %s: %v", dirname, derr)
+		}
+	}
+}
+
 func main() {
-	/* 	actionable_dirs := getDirs(opts.root_dir)
+	if opts.root_dir == "" {
+		log.Fatal("root directory, input must be set")
+	}
+	initDir(opts.output, "download location", false)
+	initDir(opts.moveto_success, "moveto onsuccess dir", true)
+	initDir(opts.moveto_failure, "moveto onfailure dir", true)
+	wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass)
 
-	   	//wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass) // not in init(), because tests can't manipulate how/when it's called then
+	ldirs, err := getDirs(opts.root_dir)
+	if err != nil {
+		log.Fatalf("error reading source directories: %v", err)
+	}
 
-	   	var wg sync.WaitGroup
-	   	for _, dir := range actionable_dirs {
-	   		wg.Add(1)
-	   		go func() {
-	   			defer wg.Done()
+	processDirs(wcd, opts.skip_trd_name_matching, opts.output, opts.moveto_success, opts.moveto_failure, ldirs)
+}
 
-	   			// within here: r, err := searchAPI(wcd, dir)
-	   			log.Warnf(dir)
-	   		}()
-	   	}
-	   	wg.Wait() // not needed, as go would wait for groutine exits anyway
-	*/
+func processDirs(wcd what.Client, skip_trd_name_matching bool, dl_loc string, moveto_success string, moveto_failure string, ldirs []dirMin) {
+	for _, ldir := range ldirs {
+		processSingleDir(wcd, skip_trd_name_matching, dl_loc, moveto_success, moveto_failure, ldir)
+	}
+}
+
+func processSingleDir(wcd what.Client, skip_trd_name_matching bool, dl_loc string, moveto_success string, moveto_failure string, ldir dirMin) {
+	ldir_with_id, merr := findDirMatch(wcd, skip_trd_name_matching, ldir)
+	if merr != nil {
+		log.Warn(merr)
+		processSingleDir_move(ldir.path, moveto_failure)
+		return
+	}
+
+	dlurl, err := wcd.CreateDownloadURL(ldir_with_id.id)
+	if err != nil {
+		log.Warnf("error creating download URL for %q: %v", ldir.name, err)
+		processSingleDir_move(ldir.path, moveto_failure)
+		return
+	}
+	if err := downloadFile(dl_loc, dlurl); err != nil {
+		log.Warnf("error downloading torrent file for %q: %v", ldir.name, err)
+		processSingleDir_move(ldir.path, moveto_failure)
+		return
+	}
+
+	processSingleDir_move(ldir.path, moveto_success)
+}
+
+func processSingleDir_move(frompath string, destdir string) {
+	if destdir != "" {
+		if rerr := os.Rename(frompath, path.Join(destdir, path.Base(frompath))); rerr != nil {
+			log.Fatalf("error moving %q to %q: %v", path.Base(frompath), destdir, rerr)
+		}
+	}
+}
+
+func downloadFile(dl_loc string, url string) error {
+	r, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad response code: %s", r.Status)
+	}
+
+	var filename string
+	for _, h := range r.Header["Content-Disposition"] {
+		_, cdheader, err := mime.ParseMediaType(h)
+		if err != nil {
+			return err
+		}
+		if cdheader["filename"] != "" {
+			filename = cdheader["filename"]
+			break
+		}
+	}
+	f, err := os.Create(path.Join(dl_loc, filename))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, r.Body)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type dirMin struct {
@@ -114,8 +212,3 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 	}
 	return dirs, nil
 }
-
-//TODO: refactor warnf-s to give an error code, and return error;
-//        that can be used by caller with filtering
-
-//TODO: id ints, size int64s should actually be uints, since they can never be negative
