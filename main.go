@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	what "github.com/charles-haynes/whatapi"
 	log "github.com/sirupsen/logrus"
@@ -51,7 +52,7 @@ func initAPI(path string, user_agent string, user string, pass string) (client w
 	}
 	err = wcd.Login(user, pass)
 	if err != nil {
-		log.Fatalf("error logging in: %q", err)
+		log.Fatalf("error logging in: %q", err) // todo: check if user and pass are not empty (though for example, user might be fine to be empty)
 	}
 	return wcd
 }
@@ -63,7 +64,7 @@ func initDir(dirpath string, dirname string, may_be_unset bool) {
 		if !may_be_unset {
 			log.Fatalf("%s must be set", dirname)
 		}
-	} else {
+	} else { //TODO: check if path exists OR bettter error message (currently perms failed, not dir notexists)
 		filepath := path.Join(dirpath, programShortName+"_permtest")
 		if werr := ioutil.WriteFile(filepath, []byte("delete me, testing writability"), os.ModePerm); werr != nil {
 			log.Fatalf("error writing permtest file to %s: %v", dirname, werr)
@@ -144,6 +145,7 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 func processDirs(wcd what.Client, skip_trd_name_matching bool, dl_loc string, moveto_success string, moveto_failure string, ldirs []dirMin) {
 	for _, ldir := range ldirs {
 		processSingleDir(wcd, skip_trd_name_matching, dl_loc, moveto_success, moveto_failure, ldir)
+		time.Sleep(time.Second * 15) //TODO: very bad rate limiter
 	}
 }
 
