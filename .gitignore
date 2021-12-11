@@ -1,3 +1,4 @@
 testdata/privtest*
 testdata/testenv.toml
 *.notgo
+.vscode
