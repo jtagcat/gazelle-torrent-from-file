@@ -36,7 +36,7 @@ func init() {
 	pflag.BoolVarP(&opts.skip_trd_name_matching, "skip-trd-name-matching", "n", false, "skip torrent root directory name matching, where feasible")
 	pflag.StringVarP(&opts.output, "output", "o", "", "where .torrent files should be downloaded to")
 	pflag.StringVarP(&opts.moveto_success, "moveto-onsuccess", "s", "", "on success, move subdirectories of root to defined directory (optional)")
-	pflag.StringVarP(&opts.moveto_failure, "moveto-onfailure", "f", "", "on failure, move subdirectories of root to defined directory (optional)")
+	pflag.StringVarP(&opts.moveto_failure, "moveto-onfailure", "f", "", "on failure (no match or other, generic error), move subdirectories of root to defined directory (optional)")
 	pflag.StringVarP(&opts.api_path, "host", "h", "https://orpheus.network/", "URL path to API (without ajax.php, trailing slash)")
 	pflag.StringVarP(&opts.api_user, "user", "u", "", "username")
 	pflag.StringVarP(&opts.api_pass, "pass", "p", "", "password")
