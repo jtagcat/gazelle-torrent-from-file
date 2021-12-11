@@ -90,7 +90,7 @@ func findDirMatch(wcd what.Client, skip_trd_name_matching bool, ldir dirMin) (ma
 	for _, f := range ldir.files {
 		sres, serr := searchAPI(wcd, f.Name)
 		if serr != nil {
-			return dirMin{}, fmt.Errorf("%v: searchAPI for file %v errored: %v", searchable, f.Name, err)
+			return dirMin{}, fmt.Errorf("%v: searchAPI for file %v errored: %v", searchable, f.Name, serr)
 		}
 
 		// remove blacklisted IDs (known no match)
