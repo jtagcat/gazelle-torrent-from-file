@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	what "github.com/charles-haynes/whatapi"
+	log "github.com/sirupsen/logrus"
 )
 
 type searchMinResult struct {
@@ -21,12 +22,14 @@ func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMin
 	searchParams.Set("order_by", "time") // time added, unlikely to skip during pagination; sorting is funky (4y, 2y, **4y**, 1y, 6mo, etc)
 	searchParams.Set("order_way", "asc") // older first
 	searchParams.Set("filelist", searchterm)
+	log.Debugf("paginated searching for %v", searchterm)
 
 	page_current, pages_total := 0, 1
 	for page_current < pages_total { // pages_total updated with each request
 		page_current++
 		searchParams.Set("page", strconv.Itoa(page_current))
 
+		log.Debugf("getting page %v", page_current)
 		r, search_err := wcd.SearchTorrents("", searchParams)
 		if search_err != nil {
 			return paginated_result, fmt.Errorf("wcd_pagination: Error searching for torrents with filename %v: %v", searchterm, search_err) // responses so far, and we had an err
@@ -55,6 +58,7 @@ func searchAPI(wcd what.Client, searchterm string) (paginated_result []searchMin
 func getAPIFilelist(wcd what.Client, rootobjs []searchMinResult) (completedResult []dirMin, err error) {
 
 	for _, o := range rootobjs { // to single torrent
+		log.Debugf("getting filelist for %v", o.id)
 		r, err := wcd.GetTorrent(o.id, url.Values{})
 		if err != nil {
 			return completedResult, fmt.Errorf("wcd_gettorrent: Error getting torrent of id %v: %v", o.id, err)

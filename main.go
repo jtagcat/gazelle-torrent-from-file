@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	what "github.com/charles-haynes/whatapi"
@@ -29,6 +30,7 @@ var opts struct {
 	api_pass               string
 	user_agent             string
 	skip_trd_name_matching bool
+	verbose                int
 }
 
 func init() {
@@ -41,8 +43,15 @@ func init() {
 	pflag.StringVarP(&opts.api_user, "user", "u", "", "username")
 	pflag.StringVarP(&opts.api_pass, "pass", "p", "", "password")
 	pflag.StringVarP(&opts.user_agent, "user-agent", "a", "gtff v0", "user agent")
+	pflag.CountVarP(&opts.verbose, "verbose", "v", "increase verbosity (up to 2)")
 	pflag.CommandLine.SortFlags = false
 	pflag.Parse()
+	switch opts.verbose {
+	case 1:
+		log.SetLevel(log.InfoLevel)
+	case 2:
+		log.SetLevel(log.DebugLevel)
+	}
 }
 
 func initAPI(path string, user_agent string, user string, pass string) (client what.Client) {
@@ -84,6 +93,7 @@ func main() {
 	initDir(opts.moveto_failure, "moveto onfailure dir", true)
 	wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass)
 
+	log.Info("init complete; getting local dirs")
 	ldirs, err := getDirs(opts.root_dir)
 	if err != nil {
 		log.Fatalf("error reading source directories: %v", err)
@@ -144,27 +154,34 @@ func getDirs(root_dir string) (dirs []dirMin, err error) {
 
 func processDirs(wcd what.Client, skip_trd_name_matching bool, dl_loc string, moveto_success string, moveto_failure string, ldirs []dirMin) {
 	for _, ldir := range ldirs {
+		log.Infof("processing trd %v", ldir.name)
 		processSingleDir(wcd, skip_trd_name_matching, dl_loc, moveto_success, moveto_failure, ldir)
-		time.Sleep(time.Second * 15) //TODO: very bad rate limiter
+		time.Sleep(time.Second * 10) //TODO: very bad preemptive rate limiter
 	}
 }
 
 func processSingleDir(wcd what.Client, skip_trd_name_matching bool, dl_loc string, moveto_success string, moveto_failure string, ldir dirMin) {
 	ldir_with_id, merr := findDirMatch(wcd, skip_trd_name_matching, ldir)
 	if merr != nil {
-		log.Warn(merr)
+		if strings.Contains(merr.Error(), "matches found") { //TODO: implement more robust differentation for generic / zeromatch/multimatch errrors
+			log.Warn(merr)
+		} else {
+			log.Error(merr)
+		}
 		processSingleDir_move(ldir.path, moveto_failure)
 		return
 	}
 
+	log.Infof("match found, id %d", ldir_with_id.id)
+
 	dlurl, err := wcd.CreateDownloadURL(ldir_with_id.id)
 	if err != nil {
-		log.Warnf("error creating download URL for %q: %v", ldir.name, err)
+		log.Errorf("error creating download URL with ID %d, for %q: %v", ldir.id, ldir.name, err)
 		processSingleDir_move(ldir.path, moveto_failure)
 		return
 	}
 	if err := downloadFile(dl_loc, dlurl); err != nil {
-		log.Warnf("error downloading torrent file for %q: %v", ldir.name, err)
+		log.Errorf("error downloading torrent file with ID %d, for %q: %v", ldir.id, ldir.name, err)
 		processSingleDir_move(ldir.path, moveto_failure)
 		return
 	}
@@ -180,7 +197,7 @@ func processSingleDir_move(frompath string, destdir string) {
 	}
 }
 
-func downloadFile(dl_loc string, url string) error {
+func downloadFile(dl_loc string, url string) error { //TODO: retry mechanism
 	r, err := http.Get(url)
 	if err != nil {
 		return err
