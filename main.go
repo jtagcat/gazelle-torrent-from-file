@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,11 +33,15 @@ var opts struct {
 	user_agent             string
 	skip_trd_name_matching bool
 	verbose                int
+	textout                string
+	mode_download_ids      bool
 }
 
 func init() {
 	pflag.StringVarP(&opts.root_dir, "input", "i", "", "root directory, in what .torrent-less directories are in")
 	pflag.BoolVarP(&opts.skip_trd_name_matching, "skip-trd-name-matching", "n", false, "skip torrent root directory name matching, where feasible")
+	pflag.StringVarP(&opts.textout, "textout", "t", "", "text file to append IDs (\\n) to")
+	pflag.BoolVarP(&opts.mode_download_ids, "download-text", "d", false, "download torrents from `-t` to `-o`")
 	pflag.StringVarP(&opts.output, "output", "o", "", "where .torrent files should be downloaded to")
 	pflag.StringVarP(&opts.moveto_success, "moveto-onsuccess", "s", "", "on success, move subdirectories of root to defined directory (optional)")
 	pflag.StringVarP(&opts.moveto_failure, "moveto-onfailure", "f", "", "on failure (no match or other, generic error), move subdirectories of root to defined directory (optional)")
@@ -85,21 +91,71 @@ func initDir(dirpath string, dirname string, may_be_unset bool) {
 }
 
 func main() {
-	if opts.root_dir == "" {
-		log.Fatal("root directory, input must be set")
-	}
-	initDir(opts.output, "download location", false)
-	initDir(opts.moveto_success, "moveto onsuccess dir", true)
-	initDir(opts.moveto_failure, "moveto onfailure dir", true)
 	wcd := initAPI(opts.api_path, opts.user_agent, opts.api_user, opts.api_pass)
 
-	log.Info("init complete; getting local dirs")
-	ldirs, err := getDirs(opts.root_dir)
-	if err != nil {
-		log.Fatalf("error reading source directories: %v", err)
-	}
+	if !opts.mode_download_ids {
+		if opts.root_dir == "" {
+			log.Fatal("root directory, input must be set")
+		}
 
-	processDirs(wcd, opts.skip_trd_name_matching, opts.output, opts.moveto_success, opts.moveto_failure, ldirs)
+		// texthandle, err := os.OpenFile(opts.textout, os.O_APPEND|os.O_WRONLY|os.O_CREATE, os.ModePerm)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// defer texthandle.Close()
+
+		//if opts.textout == "" {
+		initDir(opts.output, "download location", false)
+		//} else {
+		//	initDir(opts.output, "download location", true)
+		//}
+
+		initDir(opts.moveto_success, "moveto onsuccess dir", true)
+		initDir(opts.moveto_failure, "moveto onfailure dir", true)
+
+		log.Info("init complete; getting local dirs")
+		ldirs, err := getDirs(opts.root_dir)
+		if err != nil {
+			log.Fatalf("error reading source directories: %v", err)
+		}
+
+		processDirs(wcd, opts.skip_trd_name_matching, opts.output, opts.moveto_success, opts.moveto_failure, ldirs)
+	} else { // mode_download_ids
+		if opts.textout == "" {
+			log.Fatal("text input (`-i`) must be set")
+		}
+		initDir(opts.output, "download location", false)
+
+		downloadFromList(wcd, opts.textout, opts.output)
+	}
+}
+
+func downloadFromList(wcd what.Client, listfile string, outdir string) {
+	f, err := os.Open(listfile)
+	if err != nil {
+		log.Fatalf("error opening text input: %v", err)
+	}
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+	for line := 1; s.Scan(); line++ {
+		log.Info("Downloading line %d:, %s", line, s.Text())
+		id, err := strconv.Atoi(s.Text())
+		if err != nil {
+			log.Warnf("line %d: error converting %v to ID: %v", line, s.Text(), err)
+		}
+		dlurl, err := wcd.CreateDownloadURL(id)
+		if err != nil {
+			log.Warnf("line %d, ID %d: error creating download URL: %v", line, id, err)
+		}
+		if err := downloadFile(outdir, dlurl); err != nil {
+			log.Errorf("line %d, ID %d: error downloading torrent file: %v", line, id, err)
+		}
+		time.Sleep(time.Millisecond * 1100) // bad preemptive rate limiting
+	}
+	if err := s.Err(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 type dirMin struct {
