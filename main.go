@@ -17,6 +17,8 @@ import (
 	what "github.com/charles-haynes/whatapi"
 	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
+	retrywait "k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 )
 
 // pflags usage inspiration from restic
@@ -139,11 +141,11 @@ func downloadFromList(wcd what.Client, listfile string, outdir string) {
 
 	s := bufio.NewScanner(f)
 	for line := 1; s.Scan(); line++ {
-		log.Info("Downloading line %d:, %s", line, s.Text())
 		id, err := strconv.Atoi(s.Text())
 		if err != nil {
 			log.Warnf("line %d: error converting %v to ID: %v", line, s.Text(), err)
 		}
+		log.Infof("downloading line %d, id %d", line, id)
 		dlurl, err := wcd.CreateDownloadURL(id)
 		if err != nil {
 			log.Warnf("line %d, ID %d: error creating download URL: %v", line, id, err)
@@ -254,36 +256,51 @@ func processSingleDir_move(frompath string, destdir string) {
 }
 
 func downloadFile(dl_loc string, url string) error { //TODO: retry mechanism
-	r, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer r.Body.Close()
+	return retry.OnError(retrywait.Backoff{
+		Duration: 20 * time.Second,
+		Steps:    4,
+		Factor:   3,
+		Jitter:   1},
+		func(err error) bool {
+			return true
+		}, func() error {
+			r, err := http.Get(url)
+			if err != nil {
+				return err
+			}
+			defer r.Body.Close()
 
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad response code: %s", r.Status)
-	}
+			if r.StatusCode != http.StatusOK {
+				return fmt.Errorf("bad response code: %s", r.Status)
+			}
 
-	var filename string
-	for _, h := range r.Header["Content-Disposition"] {
-		_, cdheader, err := mime.ParseMediaType(h)
-		if err != nil {
-			return err
-		}
-		if cdheader["filename"] != "" {
-			filename = cdheader["filename"]
-			break
-		}
-	}
-	f, err := os.Create(path.Join(dl_loc, filename))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+			var filename string
+			for _, h := range r.Header["Content-Disposition"] {
+				_, cdheader, err := mime.ParseMediaType(h)
+				if err != nil {
+					return err
+				}
+				if cdheader["filename"] != "" {
+					filename = cdheader["filename"]
+					break
+				}
+			}
+			if filename == "" {
+				// likely not a torrent file, but an (rate-limit) error response, parsing would be better
+				return fmt.Errorf("no filename in response header")
+			}
 
-	_, err = io.Copy(f, r.Body)
-	if err != nil {
-		return err
-	}
-	return nil
+			// this is inside retry because defering would get complicated, and because we can.
+			f, err := os.Create(path.Join(dl_loc, filename))
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			_, err = io.Copy(f, r.Body)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
 }

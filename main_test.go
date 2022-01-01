@@ -1,7 +1,5 @@
 package main
 
-//TODO: increase coverage
-
 import (
 	"fmt"
 	"io/ioutil"
