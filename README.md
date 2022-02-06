@@ -1,9 +1,8 @@
-# gazelle-torrent-from-file
-
-! under development !
-
 match and download .torrent files for local directories with/from [gazelle](https://github.com/OPSnet/Gazelle/)
 
+This is slapped and bodged together, don't expect anything.
+
+## program logic
 1. give (root) directory in which downloaded torrents are in
 1. each subdir's (Torrent Root Directories) contents will be cross-referenced with API
    1. filenames within trd will be submitted to API, to search for torrents
