@@ -1,3 +1,7 @@
+Repo is archived. Feel free to mail to the one on gh profile.
+
+***
+
 match and download .torrent files for local directories with/from [gazelle](https://github.com/OPSnet/Gazelle/)
 
 This is slapped and bodged together, don't expect anything.
